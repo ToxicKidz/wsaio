@@ -19,7 +19,7 @@ class WebSocketWriter:
         Arguments:
             frame (WebSocketFrame): The frame to write.
 
-            mask (bool): Wether to mask the frame's data.
+            mask (bool): Whether to mask the frame's data.
         """
         if not isinstance(frame, _wsframe.WebSocketFrame):
             raise TypeError(f'frame should be a WebSocketFrame, got {type(frame).__name__!r}')
