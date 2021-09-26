@@ -90,6 +90,16 @@ class StreamParserContext:
     def set_parser(self, func):
         self._parsefunc = func
 
+    def read(self, amount):
+        while len(self._buffer) < amount:
+            data = yield
+            self._buffer.extend(data)
+
+        data = bytes(self._buffer[:amount])
+        del self._buffer[:amount]
+
+        return data
+
     def feed_data(self, data):
         while True:
             if self._parser is None:

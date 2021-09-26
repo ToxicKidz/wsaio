@@ -1,17 +1,18 @@
 import asyncio
 
-from wsaio.protocol import Stream, StreamProtocol
+from wsaio.stream import Stream, StreamProtocol
 
 
-async def parser(stream):
+def parser(ctx):
     while True:
-        print(await stream.read(40))
+        data = yield from ctx.read(40)
+        print(data)
 
 
 async def main(loop):
-    stream = Stream(loop, lambda: parser(stream))
+    stream = Stream(loop)
+    stream.set_parser(parser)
     await loop.create_connection(lambda: StreamProtocol(stream), 'google.com', 443, ssl=True)
-
     stream.write('SDJDJDJDJD\r\n\r\n')
 
 

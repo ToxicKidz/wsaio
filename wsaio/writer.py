@@ -19,6 +19,8 @@ class WebSocketWriter:
         if not isinstance(frame, wsframe.WebSocketFrame):
             raise TypeError(f'frame should be a WebSocketFrame, got {type(frame).__name__!r}')
 
+        frame.validate()
+
         self.stream.write(
             frame.op
             | (frame.fin << 7)
@@ -27,8 +29,10 @@ class WebSocketWriter:
             | (frame.rsv3 << 4)
         )
 
+        data = frame.data
+
         masked = mask << 7
-        length = len(frame.data)
+        length = len(data)
 
         if length < 126:
             self.stream.write(masked | length)
@@ -39,12 +43,15 @@ class WebSocketWriter:
             self.stream.write(masked | 127)
             self.stream.write(length.to_bytes(8, 'big', signed=False))
 
+        if frame.code is not None:
+            data = frame.code.to_bytes(2, 'big', signed=False) + data
+
         if mask:
             mask = util.genmask()
             self.stream.write(mask)
-            self.stream.write(util.mask(frame.data, mask))
+            self.stream.write(util.mask(data, mask))
         else:
-            self.stream.write(frame.data)
+            self.stream.write(data)
 
         await self.stream.wait_until_drained()
 
@@ -80,8 +87,7 @@ class WebSocketWriter:
 
             mask (bool): Whether to send the frame with a mask.
         """
-        frame = wsframe.WebSocketFrame(op=wsframe.OP_CLOSE, data=data)
-        frame.set_code(code)
+        frame = wsframe.WebSocketFrame(op=wsframe.OP_CLOSE, data=data, code=code)
         await self.send_frame(frame, mask=mask)
 
     async def send(self, data, *, binary=False, mask=False):
