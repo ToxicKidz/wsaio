@@ -33,4 +33,4 @@ def getbytes(obj):
     elif isinstance(obj, int):
         return obj.to_bytes(1, 'big')
 
-    raise TypeError(f'Expected a str or bytes-like object, got {type(obj).__name__}')
+    raise TypeError(f'Expected a str, int or bytes-like object, got {type(obj).__name__}')

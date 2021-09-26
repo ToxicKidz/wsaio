@@ -1,5 +1,4 @@
 import asyncio
-from types import coroutine
 
 from .util import getbytes
 
@@ -79,22 +78,48 @@ class StreamProtocol(asyncio.Protocol):
         await self._close_waiter
 
 
+class StreamParserContext:
+    def __init__(self, stream):
+        self.stream = stream
+
+        self._parsefunc = None
+        self._parser = None
+
+        self._buffer = bytearray()
+
+    def set_parser(self, func):
+        self._parsefunc = func
+
+    def feed_data(self, data):
+        while True:
+            if self._parser is None:
+                self._parser = self._parsefunc(self)
+                self._parser.send(None)
+
+            try:
+                self._parser.send(data)
+            except StopIteration:
+                self._parser = None
+            else:
+                break
+
+    def feed_eof(self):
+        pass
+
+
 class Stream:
     def __init__(self, loop):
         self.loop = loop
         self.protocol = None
 
-        self._parser = None
-        self._parsing = False
-
-        self._buffer = bytearray()
+        self._ctx = StreamParserContext(self)
 
     @property
     def transport(self):
         return self.protocol.transport
 
     def set_parser(self, parser):
-        self._parsefn = parser
+        self._ctx.set_parser(parser)
 
     def set_protocol(self, protocol):
         self.protocol = protocol
@@ -111,33 +136,11 @@ class Stream:
     def write_eof(self):
         self.transport.write_eof()
 
-    @coroutine
-    def read(self, amount):
-        if not self._parsing:
-            raise RuntimeError('read should only be called by the stream\'s parser')
-
-        while len(self._buffer) < amount:
-            data = yield
-            self._buffer.extend(data)
-
-        data = bytes(self._buffer[:amount])
-        del self._buffer[:amount]
-
-        return data
-
     def feed_data(self, data):
-        self._parsing = True
-
-        if self._parser is None:
-            self._parser = self._parsefn()
-            self._parser.send(None)
-
-        self._parser.send(data)
-
-        self._parsing = False
+        self._ctx.feed_data(data)
 
     def feed_eof(self):
-        pass
+        self._ctx.feed_eof()
 
     def close(self):
         self.transport.close()

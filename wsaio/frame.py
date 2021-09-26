@@ -24,7 +24,7 @@ WS_TLS_HANDSHAKE = 1015
 class WebSocketFrame:
     __slots__ = ('op', 'fin', 'rsv1', 'rsv2', 'rsv3', 'data')
 
-    def __init__(self, *, op, data, code=None):
+    def __init__(self, *, op, data):
         self.op = op
         self.data = getbytes(data)
 
@@ -33,15 +33,15 @@ class WebSocketFrame:
         self.set_rsv2(False)
         self.set_rsv3(False)
 
-        if code is not None:
-            self.data = code.to_bytes(2, 'big', signed=False) + self.data
-
         if self.is_control():
             if len(self.data) > 125:
                 raise ValueError('Control frame data length shouldn\'t be greater than 125')
 
     def is_control(self):
         return self.op in (OP_CONTINUATION, OP_CLOSE, OP_PING, OP_PONG)
+
+    def set_code(self, code):
+        self.data = code.to_bytes(2, 'big', signed=False) + self.data
 
     def set_fin(self, value):
         self.fin = bool(value)
