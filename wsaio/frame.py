@@ -45,6 +45,10 @@ WS_CLOSE_CODES = (
 )
 
 
+def is_close_code(code):
+    return code in WS_CLOSE_CODES or 3000 <= code <= 4999
+
+
 class WebSocketFrame:
     __slots__ = ('op', 'fin', 'rsv1', 'rsv2', 'rsv3', 'data')
 
@@ -72,7 +76,7 @@ class WebSocketFrame:
 
     def validate(self):
         if self.op not in WS_OPS:
-            raise ValueError(f'Invalid opcode: {self.op!r}')
+            raise ValueError('Invalid opcode')
 
         if self.op > 0x7:
             length = len(self.data)
@@ -80,14 +84,14 @@ class WebSocketFrame:
                 length += 2
 
             if len(self.data) > 125:
-                raise ValueError(f'Control frame data length exceeds 125: {length}')
+                raise ValueError('Control frame data length shouldn\'t exceed 125')
 
             if not self.fin:
                 raise ValueError('Control frame shouldn\'t be fragmented')
 
         if self.code is not None:
             if self.op != OP_CLOSE:
-                raise ValueError(f'Invalid opcode for frame with close code: {self.code}')
+                raise ValueError('Non-close frame should not have a close code')
 
-            if self.code <= 2999 and self.code not in WS_CLOSE_CODES:
-                raise ValueError(f'Invalid close code: {self.code}')
+            if not is_close_code(self.code):
+                raise ValueError('Invalid close code')

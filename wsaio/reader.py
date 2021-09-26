@@ -57,7 +57,7 @@ class WebSocketReader:
                 raise InvalidFrameError(_MISSING_CLOSE_CODE_MSG, wsframe.WS_PROTOCOL_ERROR)
 
             code = int.from_bytes(data[:2], 'big', signed=False)
-            if code <= 2999 and code not in wsframe.WS_CLOSE_CODES:
+            if not wsframe.is_close_code(code):
                 raise InvalidFrameError(
                     _INVALID_CLOSE_CODE_MSG.format(code), wsframe.WS_PROTOCOL_ERROR
                 )
