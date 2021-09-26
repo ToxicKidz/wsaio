@@ -50,10 +50,12 @@ def is_close_code(code):
 
 
 class WebSocketFrame:
-    __slots__ = ('op', 'data', 'code', 'fin', 'rsv1', 'rsv2', 'rsv3')
+    __slots__ = ('head', 'data', 'code')
 
     def __init__(self, *, op, data=None, code=None, fin=True, rsv1=False, rsv2=False, rsv3=False):
-        self.op = int(op)
+        self.head = 0
+
+        self.set_op(op)
         self.set_data(data)
         self.set_code(code)
         self.set_fin(fin)
@@ -93,26 +95,49 @@ class WebSocketFrame:
     def is_close(self):
         return self.op == OP_CLOSE
 
+    @property
+    def op(self):
+        return self.head & 0xF
+
+    @property
+    def fin(self):
+        return (self.head >> 7) & 1
+
+    @property
+    def rsv1(self):
+        return (self.head >> 6) & 1
+
+    @property
+    def rsv2(self):
+        return (self.head >> 5) & 1
+
+    @property
+    def rsv3(self):
+        return (self.head >> 4) & 1
+
+    def set_op(self, op):
+        self.head |= int(op)
+
     def set_data(self, data):
         self.data = getbytes(data)
+
+    def set_fin(self, value):
+        self.head |= int(value) << 7
+
+    def set_rsv1(self, value):
+        self.head |= int(value) << 6
+
+    def set_rsv2(self, value):
+        self.head |= int(value) << 5
+
+    def set_rsv3(self, value):
+        self.head |= int(value) << 4
 
     def set_code(self, code):
         if code is not None:
             self.code = int(code)
         else:
             self.code = None
-
-    def set_fin(self, value):
-        self.fin = bool(value)
-
-    def set_rsv1(self, value):
-        self.rsv1 = bool(value)
-
-    def set_rsv2(self, value):
-        self.rsv2 = bool(value)
-
-    def set_rsv3(self, value):
-        self.rsv2 = bool(value)
 
     def validate(self):
         if self.op not in WS_OPS:

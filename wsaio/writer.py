@@ -21,13 +21,7 @@ class WebSocketWriter:
 
         frame.validate()
 
-        self.stream.write(
-            frame.op
-            | (frame.fin << 7)
-            | (frame.rsv1 << 6)
-            | (frame.rsv2 << 5)
-            | (frame.rsv3 << 4)
-        )
+        self.stream.write(frame.head)
 
         data = frame.data
 
