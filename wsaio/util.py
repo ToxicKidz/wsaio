@@ -22,7 +22,9 @@ def genacckey(key):
 
 
 def getbytes(obj):
-    if isinstance(obj, bytes):
+    if obj is None:
+        return b''
+    elif isinstance(obj, bytes):
         return obj
     elif isinstance(obj, str):
         return obj.encode('utf-8')

@@ -11,21 +11,29 @@ _LARGE_CONTROL_MSG = (
     'The WebSocket received a control frame with a payload length that exceeds 125: {!r}'
 )
 _FRAGMENTED_CONTROL_MSG = 'The WebSocket received a fragmented control frame'
-_INVALID_TEXT_MSG = 'The WebSocket received a text frame with non-UTF-8 data'
+_NON_UTF_8_MSG = 'The WebSocket received a text or control frame with non-UTF-8 data'
 
 
 class WebSocketReader:
-    """A class for reading WebSocket frames from a stream"""
+    """A class for reading WebSocket frames from a stream."""
 
     def __init__(self, *, stream):
         self.stream = stream
+
+        self._callback = None
+
+    def set_callback(self, callback):
+        self._callback = callback
 
     def read_frame(self, ctx):
         fbyte, sbyte = yield from ctx.read(2)
 
         op = fbyte & 0xF
-
         fin = (fbyte >> 7) & 1
+        rsv1 = (fbyte >> 6) & 1
+        rsv2 = (fbyte >> 5) & 1
+        rsv3 = (fbyte >> 4) & 1
+
         masked = (sbyte >> 7) & 1
         length = sbyte & ~(1 << 7)
 
@@ -52,6 +60,8 @@ class WebSocketReader:
         if masked:
             data = util.mask(data, mask)
 
+        frame = wsframe.WebSocketFrame(op=op, fin=fin, rsv1=rsv1, rsv2=rsv2, rsv3=rsv3)
+
         if op == wsframe.OP_CLOSE:
             if len(data) < 2:
                 raise InvalidFrameError(_MISSING_CLOSE_CODE_MSG, wsframe.WS_PROTOCOL_ERROR)
@@ -62,15 +72,15 @@ class WebSocketReader:
                     _INVALID_CLOSE_CODE_MSG.format(code), wsframe.WS_PROTOCOL_ERROR
                 )
 
-            data = data[2:]
-        elif op == wsframe.OP_TEXT:
+            frame.set_code(code)
+            frame.set_data(data[2:])
+        elif op == wsframe.OP_TEXT or op > 0x7:
             try:
-                data = data.decode()
+                frame.set_data(data.decode())
             except UnicodeDecodeError:
-                raise InvalidFrameError(_INVALID_TEXT_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
+                raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
+        else:
+            frame.set_data(data)
 
-        frame = wsframe.WebSocketFrame(op=op, data=data)
-        frame.set_fin(fin)
-        frame.set_rsv1((fbyte >> 6) & 1)
-        frame.set_rsv2((fbyte >> 5) & 1)
-        frame.set_rsv3((fbyte >> 4) & 1)
+        if self._callback is not None:
+            self._callback(frame)

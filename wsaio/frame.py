@@ -50,17 +50,57 @@ def is_close_code(code):
 
 
 class WebSocketFrame:
-    __slots__ = ('op', 'fin', 'rsv1', 'rsv2', 'rsv3', 'data')
+    __slots__ = ('op', 'data', 'code', 'fin', 'rsv1', 'rsv2', 'rsv3')
 
-    def __init__(self, *, op, data, code=None):
-        self.op = op
+    def __init__(self, *, op, data=None, code=None, fin=True, rsv1=False, rsv2=False, rsv3=False):
+        self.op = int(op)
+        self.set_data(data)
+        self.set_code(code)
+        self.set_fin(fin)
+        self.set_rsv1(rsv1)
+        self.set_rsv2(rsv2)
+        self.set_rsv3(rsv3)
+
+    def __repr__(self):
+        if self.is_text():
+            name = 'Text'
+        elif self.is_binary():
+            name = 'Binary'
+        elif self.is_ping():
+            name = 'Ping'
+        elif self.is_pong():
+            name = 'Pong'
+        elif self.is_close():
+            name = 'Close'
+
+        return f'<{name} frame at {hex(id(self))}>'
+
+    def is_control(self):
+        return self.op > 0x7
+
+    def is_text(self):
+        return self.op == OP_TEXT
+
+    def is_binary(self):
+        return self.op == OP_BINARY
+
+    def is_ping(self):
+        return self.op == OP_PING
+
+    def is_pong(self):
+        return self.op == OP_PONG
+
+    def is_close(self):
+        return self.op == OP_CLOSE
+
+    def set_data(self, data):
         self.data = getbytes(data)
-        self.code = code
 
-        self.set_fin(True)
-        self.set_rsv1(False)
-        self.set_rsv2(False)
-        self.set_rsv3(False)
+    def set_code(self, code):
+        if code is not None:
+            self.code = int(code)
+        else:
+            self.code = None
 
     def set_fin(self, value):
         self.fin = bool(value)
