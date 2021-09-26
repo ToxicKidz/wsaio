@@ -1,4 +1,5 @@
 from . import frame as _wsframe
+from . import util
 
 
 class WebSocketWriter:
@@ -10,22 +11,22 @@ class WebSocketWriter:
         else:
             self.extensions = []
 
-    async def write(self, frame, *, masked=False):
+    async def write(self, frame, *, mask=False):
         if not isinstance(frame, _wsframe.WebSocketFrame):
-            raise TypeError(f'frame should be a WebSocketFrame, got {frame!r}')
+            raise TypeError(f'frame should be a WebSocketFrame, got {type(frame).__name__!r}')
 
         for extension in self.extensions:
             frame = extension.process(frame)
 
         self.transport.write(
-            frame.opcode
+            frame.op
             | (frame.fin << 7)
             | (frame.rsv1 << 6)
             | (frame.rsv2 << 5)
             | (frame.rsv3 << 4)
         )
 
-        mask_bit = masked << 7
+        mask_bit = mask << 7
         length = len(frame.data)
 
         if length < 126:
@@ -37,34 +38,28 @@ class WebSocketWriter:
             self.transport.write(mask_bit | 127)
             self.transport.write(length.to_bytes(8, 'big', signed=False))
 
-        if masked:
-            mask = _wsframe.genmask()
+        if mask:
+            mask = util.genmask()
             self.transport.write(mask)
-            self.transport.write(_wsframe.mask(frame.data, mask))
+            self.transport.write(util.mask(frame.data, mask))
         else:
             self.transport.write(frame.data)
 
-    async def ping(self, data, *, masked=False):
-        frame = _wsframe.WebSocketFrame(_wsframe.OP_PING, 1, 0, 0, 0, data)
-        await self.write(frame, masked=masked)
+    async def ping(self, data=None, *, mask=False):
+        frame = _wsframe.WebSocketFrame(op=_wsframe.OP_PING, data=data)
+        await self.write(frame, mask=mask)
 
-    async def pong(self, data, *, masked=False):
-        frame = _wsframe.WebSocketFrame(_wsframe.OP_PONG, 1, 0, 0, 0, data)
-        await self.write(frame, masked=masked)
+    async def pong(self, data=None, *, mask=False):
+        frame = _wsframe.WebSocketFrame(op=_wsframe.OP_PONG, data=data)
+        await self.write(frame, mask=mask)
 
-    async def send(self, data, *, binary=False, masked=False):
-        if isinstance(data, str):
-            data = data.encode('utf-8')
-        elif isinstance(data, memoryview):
-            data = data.tobytes()
-        elif isinstance(data, bytearray):
-            data = bytes(data)
-        else:
-            raise TypeError(
-                f'data shouled be a str or bytes-like object, got {type(data).__name__}'
-            )
+    async def close(self, data=None, *, code=_wsframe.WS_NORMAL_CLOSURE, mask=False):
+        frame = _wsframe.WebSocketFrame(op=_wsframe.OP_CLOSE, data=data)
+        frame.set_code(code)
+        await self.write(frame, mask=mask)
 
-        op = _wsframe.OP_BINARY if binary else _wsframe.OP_TEXT
-
-        frame = _wsframe.WebSocketFrame(op, 1, 0, 0, 0, data)
-        await self.write(frame, masked=masked)
+    async def send(self, data, *, binary=False, mask=False):
+        frame = _wsframe.WebSocketFrame(
+            op=_wsframe.OP_BINARY if binary else _wsframe.OP_TEXT, data=data
+        )
+        await self.write(frame, mask=mask)

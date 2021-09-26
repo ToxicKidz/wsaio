@@ -1,8 +1,3 @@
-import os
-from collections import namedtuple
-
-WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-
 OP_CONTINUATION = 0x0
 OP_TEXT = 0x1
 OP_BINARY = 0x2
@@ -24,12 +19,41 @@ WS_INTERNAL_SERVER_ERROR = 1011
 WS_TLS_HANDSHAKE = 1015
 
 
-WebSocketFrame = namedtuple('WebSocketFrame', ('opcode', 'fin', 'rsv1', 'rsv2', 'rsv3', 'data'))
+class WebSocketFrame:
+    __slots__ = ('op', 'fin', 'rsv1', 'rsv2', 'rsv3', 'data')
 
+    def __init__(self, *, op, data):
+        self.op = op
 
-def genmask():
-    return os.urandom(4)
+        self.set_fin(True)
+        self.set_rsv1(False)
+        self.set_rsv2(False)
+        self.set_rsv3(False)
 
+        if data is None:
+            self.data = b''
+        elif isinstance(data, str):
+            self.data = data.encode()
+        elif isinstance(data, memoryview):
+            self.data = data.tobytes()
+        elif isinstance(data, bytearray):
+            self.data = bytes(data)
+        else:
+            raise TypeError(
+                f'data should be a str or bytes-like object, got {type(data).__name__}'
+            )
 
-def mask(data, mask):
-    return bytes(data[i] ^ mask[i % 4] for i in range(len(data)))
+    def set_fin(self, value):
+        self.fin = bool(value)
+
+    def set_rsv1(self, value):
+        self.rsv1 = bool(value)
+
+    def set_rsv2(self, value):
+        self.rsv2 = bool(value)
+
+    def set_rsv3(self, value):
+        self.rsv2 = bool(value)
+
+    def set_code(self, code):
+        self.data = code.to_bytes(2, 'big', signed=False) + self.data
