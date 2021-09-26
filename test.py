@@ -1,22 +1,20 @@
 import asyncio
-import itertools
 
-import wsaio
-
-URL = 'wss://echo.websocket.org'
+from wsaio.protocol import Stream, StreamProtocol
 
 
-class HelloClient(wsaio.WebSocketClient):
-    async def ws_connected(self):
-        for i in itertools.count():
-            print(f'[HelloClient] Sending data - COUNT: {i}')
-            await self.send_str('Hello World')
-            await asyncio.sleep(5)
-
-    def ws_text_received(self, data):
-        print(f'[HelloClient] Received frame - DATA: {data}')
+async def parser(stream):
+    while True:
+        print(await stream.read(40))
 
 
-client = HelloClient()
-client.loop.create_task(client.connect(URL))
-client.loop.run_forever()
+async def main(loop):
+    stream = Stream(loop, lambda: parser(stream))
+    await loop.create_connection(lambda: StreamProtocol(stream), 'google.com', 443, ssl=True)
+
+    stream.write('SDJDJDJDJD\r\n\r\n')
+
+
+loop = asyncio.get_event_loop()
+loop.create_task(main(loop))
+loop.run_forever()

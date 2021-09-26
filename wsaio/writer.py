@@ -3,8 +3,8 @@ from . import util
 
 
 class WebSocketWriter:
-    def __init__(self, *, transport, extensions):
-        self.transport = transport
+    def __init__(self, *, protocol, extensions):
+        self.protocol = protocol
 
         if extensions is not None:
             self.extensions = extensions
@@ -18,7 +18,7 @@ class WebSocketWriter:
         for extension in self.extensions:
             frame = extension.process(frame)
 
-        self.transport.write(
+        self.protocol.write(
             frame.op
             | (frame.fin << 7)
             | (frame.rsv1 << 6)
@@ -30,20 +30,20 @@ class WebSocketWriter:
         length = len(frame.data)
 
         if length < 126:
-            self.transport.write(mask_bit | length)
+            self.stream.write(mask_bit | length)
         elif length < (1 << 16):
-            self.transport.write(mask_bit | 126)
-            self.transport.write(length.to_bytes(2, 'big', signed=False))
+            self.stream.write(mask_bit | 126)
+            self.stream.write(length.to_bytes(2, 'big', signed=False))
         else:
-            self.transport.write(mask_bit | 127)
-            self.transport.write(length.to_bytes(8, 'big', signed=False))
+            self.stream.write(mask_bit | 127)
+            self.stream.write(length.to_bytes(8, 'big', signed=False))
 
         if mask:
             mask = util.genmask()
-            self.transport.write(mask)
-            self.transport.write(util.mask(frame.data, mask))
+            self.stream.write(mask)
+            self.stream.write(util.mask(frame.data, mask))
         else:
-            self.transport.write(frame.data)
+            self.stream.write(frame.data)
 
     async def ping(self, data=None, *, mask=False):
         frame = _wsframe.WebSocketFrame(op=_wsframe.OP_PING, data=data)

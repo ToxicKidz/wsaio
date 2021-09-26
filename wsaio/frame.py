@@ -1,3 +1,5 @@
+from .util import tobytes
+
 OP_CONTINUATION = 0x0
 OP_TEXT = 0x1
 OP_BINARY = 0x2
@@ -24,19 +26,12 @@ class WebSocketFrame:
 
     def __init__(self, *, op, data, code=None):
         self.op = op
+        self.data = tobytes(data)
 
-        if data is None:
-            self.data = b''
-        elif isinstance(data, str):
-            self.data = data.encode()
-        elif isinstance(data, memoryview):
-            self.data = data.tobytes()
-        elif isinstance(data, bytearray):
-            self.data = bytes(data)
-        else:
-            raise TypeError(
-                f'data should be a str or bytes-like object, got {type(data).__name__}'
-            )
+        self.set_fin(True)
+        self.set_rsv1(False)
+        self.set_rsv2(False)
+        self.set_rsv3(False)
 
         if code is not None:
             self.data = code.to_bytes(2, 'big', signed=False) + self.data
@@ -44,11 +39,6 @@ class WebSocketFrame:
         if self.is_control():
             if len(self.data) > 125:
                 raise ValueError('Control frame data length shouldn\'t be greater than 125')
-
-        self.set_fin(True)
-        self.set_rsv1(False)
-        self.set_rsv2(False)
-        self.set_rsv3(False)
 
     def is_control(self):
         return self.op in (OP_CONTINUATION, OP_CLOSE, OP_PING, OP_PONG)

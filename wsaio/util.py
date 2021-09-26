@@ -19,3 +19,18 @@ def genseckey():
 
 def genacckey(key):
     return base64.b64encode(hashlib.sha1(key + WS_GUID).digest()).decode()
+
+
+def tobytes(obj):
+    if isinstance(obj, bytes):
+        return obj
+    elif isinstance(obj, str):
+        return obj.encode('utf-8')
+    elif isinstance(obj, memoryview):
+        return obj.tobytes()
+    elif isinstance(obj, bytearray):
+        return bytes(obj)
+    elif isinstance(obj, int):
+        return obj.to_bytes(1, 'big')
+
+    raise TypeError(f'Expected a str or bytes-like object, got {type(obj).__name__}')
