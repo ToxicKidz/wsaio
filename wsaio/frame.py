@@ -1,4 +1,4 @@
-from .util import tobytes
+from .util import getbytes
 
 OP_CONTINUATION = 0x0
 OP_TEXT = 0x1
@@ -26,7 +26,7 @@ class WebSocketFrame:
 
     def __init__(self, *, op, data, code=None):
         self.op = op
-        self.data = tobytes(data)
+        self.data = getbytes(data)
 
         self.set_fin(True)
         self.set_rsv1(False)

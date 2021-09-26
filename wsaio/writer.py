@@ -3,8 +3,10 @@ from . import util
 
 
 class WebSocketWriter:
-    def __init__(self, *, protocol, extensions):
-        self.protocol = protocol
+    """A class for writing WebSocket frames to a stream."""
+
+    def __init__(self, *, stream, extensions):
+        self.stream = stream
 
         if extensions is not None:
             self.extensions = extensions
@@ -12,13 +14,20 @@ class WebSocketWriter:
             self.extensions = []
 
     async def send_frame(self, frame, *, mask=False):
+        """Writes a frame to the stream.
+
+        Arguments:
+            frame (WebSocketFrame): The frame to write.
+
+            mask (bool): Wether to mask the frame's data.
+        """
         if not isinstance(frame, _wsframe.WebSocketFrame):
             raise TypeError(f'frame should be a WebSocketFrame, got {type(frame).__name__!r}')
 
         for extension in self.extensions:
             frame = extension.process(frame)
 
-        self.protocol.write(
+        self.stream.write(
             frame.op
             | (frame.fin << 7)
             | (frame.rsv1 << 6)
@@ -45,19 +54,54 @@ class WebSocketWriter:
         else:
             self.stream.write(frame.data)
 
+        await self.stream.wait_until_drained()
+
     async def ping(self, data=None, *, mask=False):
+        """Writes a ping frame to the stream.
+
+        Arguments:
+            data (Optional[str | int | BytesLike]): The data to send in the frame.
+
+            mask (bool): Whether to mask the frame's data.
+        """
         frame = _wsframe.WebSocketFrame(op=_wsframe.OP_PING, data=data)
         await self.send_frame(frame, mask=mask)
 
     async def pong(self, data=None, *, mask=False):
+        """Writes a pong frame to the stream.
+
+        Arguments:
+            data (Optional[str | int | BytesLike]): The data to send in the frame.
+
+            mask (bool): Whether to mask the frame's data.
+        """
         frame = _wsframe.WebSocketFrame(op=_wsframe.OP_PONG, data=data)
         await self.send_frame(frame, mask=mask)
 
     async def close(self, data=None, *, code=_wsframe.WS_NORMAL_CLOSURE, mask=False):
+        """Writes a close frame to the stream.
+
+        Arguments:
+            data (Optional[str | int | BytesLike]): The data to send in the frame.
+
+            code (int): The close code.
+
+            mask (bool): Whether to mask the frame's data.
+        """
         frame = _wsframe.WebSocketFrame(op=_wsframe.OP_CLOSE, data=data, code=code)
         await self.send_frame(frame, mask=mask)
 
     async def send(self, data, *, binary=False, mask=False):
+        """Writes a data frame to the stream.
+
+        Arguments:
+            data (str | int | BytesLike): The data to send in the frame.
+
+            binary (bool): Whether to send the frame with the binary opcode,
+                this should be used if the data isn't utf-8.
+
+            mask (bool): Whether to mask the frame's data.
+        """
         frame = _wsframe.WebSocketFrame(
             op=_wsframe.OP_BINARY if binary else _wsframe.OP_TEXT, data=data
         )

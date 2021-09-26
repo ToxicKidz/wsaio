@@ -1,7 +1,7 @@
 import asyncio
 from types import coroutine
 
-from .util import tobytes
+from .util import getbytes
 
 
 class StreamProtocol(asyncio.Protocol):
@@ -94,16 +94,16 @@ class Stream:
         return self.protocol.transport
 
     def set_parser(self, parser):
-        self._parser_coro = parser
+        self._parsefn = parser
 
     def set_protocol(self, protocol):
         self.protocol = protocol
 
     def write(self, data):
-        self.transport.write(tobytes(data))
+        self.transport.write(getbytes(data))
 
     def writelines(self, data):
-        self.transport.writelines(tobytes(line) for line in data)
+        self.transport.writelines(getbytes(line) for line in data)
 
     def can_write_eof(self):
         return self.transport.can_write_eof()
@@ -129,7 +129,7 @@ class Stream:
         self._parsing = True
 
         if self._parser is None:
-            self._parser = self._parser_coro()
+            self._parser = self._parsefn()
             self._parser.send(None)
 
         self._parser.send(data)

@@ -21,7 +21,7 @@ def genacckey(key):
     return base64.b64encode(hashlib.sha1(key + WS_GUID).digest()).decode()
 
 
-def tobytes(obj):
+def getbytes(obj):
     if isinstance(obj, bytes):
         return obj
     elif isinstance(obj, str):
