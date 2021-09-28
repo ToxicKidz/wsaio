@@ -124,9 +124,15 @@ class Stream:
 
         self._ctx = StreamParserContext(self)
 
+    def __repr__(self):
+        return (
+            f'<{self.__class__.__name__} protocol={self.protocol!r}, transport={self.transport!r}>'
+        )
+
     @property
     def transport(self):
-        return self.protocol.transport
+        if self.protocol is not None:
+            return self.protocol.transport
 
     def set_parser(self, parser):
         self._ctx.set_parser(parser)

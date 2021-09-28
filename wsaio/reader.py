@@ -7,7 +7,9 @@ _MISSING_CLOSE_CODE_MSG = 'The WebSocket received a close frame with no close co
 _INVALID_CLOSE_CODE_MSG = (
     'The WebSocket received a close frame with an invalid or unknown close code: {!r}'
 )
-_INVALID_LENGTH_MSG = 'The WebSocket received a frame with an invalid length: {!r}'
+_INVALID_LENGTH_MSG = (
+    'The WebSocket received a frame with an invalid non-extended payload length: {!r}'
+)
 _LARGE_CONTROL_MSG = (
     'The WebSocket received a control frame with a payload length that exceeds 125: {!r}'
 )
@@ -23,12 +25,17 @@ class WebSocketReader:
 
         self._callback = None
 
+    def __repr__(self):
+        return f'<{self.__class__.__name__} stream={self.stream!r}>'
+
     def set_callback(self, callback):
         self._callback = callback
 
     def run_callback(self, frame):
-        if self._callback is not None:
-            return self._callback(frame)
+        if self._callback is None:
+            raise RuntimeError('The reader received a frame but no callback was set')
+
+        return self._callback(frame)
 
     def read_frame(self, ctx):
         fbyte, sbyte = yield from ctx.read(2)
