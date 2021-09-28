@@ -23,7 +23,7 @@ def mask(data, mask):
 
 def genseckey():
     """Generates a random base64 value for a secret WebSocket key."""
-    return base64.b64encode(os.urandom(16)).decode()
+    return base64.b64encode(os.urandom(16)).decode('utf-8')
 
 
 def genacckey(key):
@@ -32,17 +32,18 @@ def genacckey(key):
     Arguments:
         key (str): The secret WebSocket key.
     """
-    return base64.b64encode(hashlib.sha1(key + WS_GUID).digest()).decode()
+    return base64.b64encode(hashlib.sha1(key + WS_GUID).digest()).decode('utf-8')
 
 
 def getbytes(obj):
     """Converts an object to bytes.
 
-    If the object is None an empty byte string is returned.
-    If the object is a str, the value of `str.encode()` is returned.
-    If the object is a memoryview, the value of `memoryview.tobytes()` is returned.
-    If the object is a bytearray, the value of `bytes(bytearray)` is returned.
-    If the object is an int, the value of `bytes([int])` is returned.
+    - If the object is None an empty byte string is returned.
+    - If the object is a byte string, it is returned.
+    - If the object is a str, the value of `str.encode('utf-8')` is returned.
+    - If the object is a memoryview, the value of `memoryview.tobytes()` is returned.
+    - If the object is a bytearray, the value of `bytes(bytearray)` is returned.
+    - If the object is an int, the value of `bytes([int])` is returned.
 
     Raises:
         TypeError: The object could not be converted to a byte.

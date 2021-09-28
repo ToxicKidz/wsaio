@@ -29,9 +29,15 @@ class WebSocketReader:
         return f'<{self.__class__.__name__} stream={self.stream!r}>'
 
     def set_callback(self, callback):
+        """Sets the function to be called when a WebSocket frame is received."""
         self._callback = callback
 
     def run_callback(self, frame):
+        """Runs the reader's receive callback with the provided WebSocket frame.
+
+        Raises:
+            RuntimeError: The reader has no callback.
+        """
         if self._callback is None:
             raise RuntimeError('The reader received a frame but no callback was set')
 
@@ -103,7 +109,7 @@ class WebSocketReader:
             data = self._set_close_code(frame, data)
 
         try:
-            frame.set_data(data.decode())
+            frame.set_data(data.decode('utf-8'))
         except UnicodeDecodeError:
             raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
 
@@ -113,7 +119,7 @@ class WebSocketReader:
 
         if frame.is_text():
             try:
-                frame.set_data(data.decode())
+                frame.set_data(data.decode('utf-8'))
             except UnicodeDecodeError:
                 raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
         else:

@@ -50,6 +50,7 @@ def is_close_code(code):
 
 
 class WebSocketFrame:
+    """Represents a WebSocket frame."""
     __slots__ = ('head', 'data', 'code')
 
     def __init__(self, *, op, data=None, code=None, fin=True, rsv1=False, rsv2=False, rsv3=False):
@@ -149,10 +150,11 @@ class WebSocketFrame:
             self.code = None
 
     def validate(self):
+        """Raises ValueError is the frame doesn't conform to the WebSocket protocol."""
         if self.op not in WS_OPS:
             raise ValueError('Invalid opcode')
 
-        if self.op > 0x7:
+        if self.is_control():
             length = len(self.data)
             if self.code is not None:
                 length += 2
