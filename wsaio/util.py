@@ -63,6 +63,6 @@ def getbytes(obj):
         if 0 <= obj <= 255:
             return bytes((obj,))
 
-        raise ValueError(f'{obj} can not be represented by a single byte')
+        raise ValueError(f'{obj} can not be represented with a single byte')
 
     raise TypeError(f'Expected a str, int or bytes-like object, got {type(obj).__name__}')

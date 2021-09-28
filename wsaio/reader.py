@@ -7,11 +7,12 @@ _MISSING_CLOSE_CODE_MSG = 'The WebSocket received a close frame with no close co
 _INVALID_CLOSE_CODE_MSG = (
     'The WebSocket received a close frame with an invalid or unknown close code: {!r}'
 )
+_INVALID_LENGTH_MSG = 'The WebSocket received a frame with an invalid length: {!r}'
 _LARGE_CONTROL_MSG = (
     'The WebSocket received a control frame with a payload length that exceeds 125: {!r}'
 )
 _FRAGMENTED_CONTROL_MSG = 'The WebSocket received a fragmented control frame'
-_NON_UTF_8_MSG = 'The WebSocket received a text or control frame with non-UTF-8 data'
+_NON_UTF_8_MSG = 'The WebSocket received a text or control frame with non-UTF-8 payload data'
 
 
 class WebSocketReader:
@@ -25,62 +26,88 @@ class WebSocketReader:
     def set_callback(self, callback):
         self._callback = callback
 
+    def run_callback(self, frame):
+        if self._callback is not None:
+            return self._callback(frame)
+
     def read_frame(self, ctx):
         fbyte, sbyte = yield from ctx.read(2)
-
-        op = fbyte & 0xF
-        fin = (fbyte >> 7) & 1
-        rsv1 = (fbyte >> 6) & 1
-        rsv2 = (fbyte >> 5) & 1
-        rsv3 = (fbyte >> 4) & 1
 
         masked = (sbyte >> 7) & 1
         length = sbyte & ~(1 << 7)
 
-        if op not in wsframe.WS_OPS:
-            raise InvalidFrameError(_INVALID_OPCODE_MSG.format(op), wsframe.WS_PROTOCOL_ERROR)
+        frame = wsframe.WebSocketFrame.from_head(fbyte)
 
-        if not fin and op > 0x7:
+        if frame.op not in wsframe.WS_OPS:
+            raise InvalidFrameError(_INVALID_OPCODE_MSG.format(frame.op), wsframe.WS_PROTOCOL_ERROR)
+
+        if frame.is_control():
+            yield from self._handle_control_frame(ctx, frame, masked, length)
+        else:
+            yield from self._handle_data_frame(ctx, frame, masked, length)
+
+        self.run_callback(frame)
+
+    def _read_length(self, ctx, length):
+        if length == 126:
+            data = yield from ctx.read(2)
+        elif length == 127:
+            data = yield from ctx.read(8)
+        else:
+            if length > 127:  # XXX: Is this even possible?
+                raise InvalidFrameError(_INVALID_LENGTH_MSG, wsframe.WS_PROTOCOL_ERROR)
+
+            data = yield from ctx.read(length)
+
+        return int.from_bytes(data, 'big', signed=False)
+
+    def _read_payload(self, ctx, length, masked):
+        if masked:
+            mask = yield from ctx.read(4)
+            data = yield from ctx.read(length)
+            return util.mask(data, mask)
+        else:
+            data = yield from ctx.read(length)
+            return data
+
+    def _set_close_code(self, frame, data):
+        if len(data) < 2:
+            raise InvalidFrameError(_MISSING_CLOSE_CODE_MSG, wsframe.WS_PROTOCOL_ERROR)
+
+        code = int.from_bytes(data[:2], 'big', signed=False)
+
+        if not wsframe.is_close_code(code):
+            raise InvalidFrameError(_INVALID_CLOSE_CODE_MSG, wsframe.WS_PROTOCOL_ERROR)
+
+        frame.set_code(code)
+
+        return data[2:]
+
+    def _handle_control_frame(self, ctx, frame, masked, length):
+        if not frame.fin:
             raise InvalidFrameError(_FRAGMENTED_CONTROL_MSG, wsframe.WS_PROTOCOL_ERROR)
 
         if length > 125:
-            if op > 0x7:
-                raise InvalidFrameError(
-                    _LARGE_CONTROL_MSG.format(length), wsframe.WS_PROTOCOL_ERROR
-                )
+            raise InvalidFrameError(_LARGE_CONTROL_MSG.format(length), wsframe.WS_PROTOCOL_ERROR)
 
-            data = yield from ctx.read(2 if length == 126 else 8)
-            length = int.from_bytes(data, 'big', signed=False)
+        data = yield from self._read_payload(ctx, length, masked)
 
-        if masked:
-            mask = yield from ctx.read(4)
+        if frame.is_close():
+            data = self._set_close_code(frame, data)
 
-        data = yield from ctx.read(length)
+        try:
+            frame.set_data(data.decode())
+        except UnicodeDecodeError:
+            raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
 
-        if masked:
-            data = util.mask(data, mask)
+    def _handle_data_frame(self, ctx, frame, masked, length):
+        length = yield from self._read_length(ctx, length)
+        data = yield from self._read_payload(ctx, length, masked)
 
-        frame = wsframe.WebSocketFrame(op=op, fin=fin, rsv1=rsv1, rsv2=rsv2, rsv3=rsv3)
-
-        if op == wsframe.OP_CLOSE:
-            if len(data) < 2:
-                raise InvalidFrameError(_MISSING_CLOSE_CODE_MSG, wsframe.WS_PROTOCOL_ERROR)
-
-            code = int.from_bytes(data[:2], 'big', signed=False)
-            if not wsframe.is_close_code(code):
-                raise InvalidFrameError(
-                    _INVALID_CLOSE_CODE_MSG.format(code), wsframe.WS_PROTOCOL_ERROR
-                )
-
-            frame.set_code(code)
-            frame.set_data(data[2:])
-        elif op == wsframe.OP_TEXT or op > 0x7:
+        if frame.is_text():
             try:
                 frame.set_data(data.decode())
             except UnicodeDecodeError:
                 raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
         else:
             frame.set_data(data)
-
-        if self._callback is not None:
-            self._callback(frame)

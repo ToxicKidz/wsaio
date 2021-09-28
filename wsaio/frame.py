@@ -63,6 +63,15 @@ class WebSocketFrame:
         self.set_rsv2(rsv2)
         self.set_rsv3(rsv3)
 
+    @classmethod
+    def from_head(cls, head, data=None):
+        self = cls.__new__(cls)
+
+        self.head = head
+        self.set_data(data)
+
+        return self
+
     def __repr__(self):
         if self.is_text():
             name = 'Text'
