@@ -8,12 +8,12 @@ OP_PING = 0x9
 OP_PONG = 0xA
 
 WS_OPS = {
-    OP_CONTINUATION,
-    OP_TEXT,
-    OP_BINARY,
-    OP_CLOSE,
-    OP_PING,
-    OP_PONG,
+    OP_CONTINUATION: 'Continuation',
+    OP_TEXT: 'Text',
+    OP_BINARY: 'Binary',
+    OP_CLOSE: 'Close',
+    OP_PING: 'Ping',
+    OP_PONG: 'Pong',
 }
 
 WS_NORMAL_CLOSURE = 1000
@@ -30,18 +30,18 @@ WS_INTERNAL_SERVER_ERROR = 1011
 WS_TLS_HANDSHAKE = 1015
 
 WS_CLOSE_CODES = {
-    WS_NORMAL_CLOSURE,
-    WS_GOING_AWAY,
-    WS_PROTOCOL_ERROR,
-    WS_UNSUPPORTED_DATA,
-    WS_NO_STATUS_RECEIVED,
-    WS_ABNORMAL_CLOSURE,
-    WS_INVALID_PAYLOAD_DATA,
-    WS_POLICY_VIOLATION,
-    WS_MESSAGE_TOO_BIG,
-    WS_MANDATORY_EXTENSION,
-    WS_INTERNAL_SERVER_ERROR,
-    WS_TLS_HANDSHAKE
+    WS_NORMAL_CLOSURE: 'Normal Closure',
+    WS_GOING_AWAY: 'Goind Away',
+    WS_PROTOCOL_ERROR: 'Protocol Error',
+    WS_UNSUPPORTED_DATA: 'Unsupported Data',
+    WS_NO_STATUS_RECEIVED: 'No Status Received',
+    WS_ABNORMAL_CLOSURE: 'Abnormal Closure',
+    WS_INVALID_PAYLOAD_DATA: 'Invalid Payload Data',
+    WS_POLICY_VIOLATION: 'Policy Violation',
+    WS_MESSAGE_TOO_BIG: 'Message Too Big',
+    WS_MANDATORY_EXTENSION: 'Mandatory Extension',
+    WS_INTERNAL_SERVER_ERROR: 'Internal Server Error',
+    WS_TLS_HANDSHAKE: 'TLS Handshake'
 }
 
 
@@ -74,17 +74,7 @@ class WebSocketFrame:
         return self
 
     def __repr__(self):
-        if self.is_text():
-            name = 'Text'
-        elif self.is_binary():
-            name = 'Binary'
-        elif self.is_ping():
-            name = 'Ping'
-        elif self.is_pong():
-            name = 'Pong'
-        elif self.is_close():
-            name = 'Close'
-
+        name = WS_OPS.get(self.op, '<unknown>')
         return f'<{name} frame at {hex(id(self))}>'
 
     def is_control(self):
