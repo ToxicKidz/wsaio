@@ -31,7 +31,7 @@ WS_TLS_HANDSHAKE = 1015
 
 WS_CLOSE_CODES = {
     WS_NORMAL_CLOSURE: 'Normal Closure',
-    WS_GOING_AWAY: 'Goind Away',
+    WS_GOING_AWAY: 'Going Away',
     WS_PROTOCOL_ERROR: 'Protocol Error',
     WS_UNSUPPORTED_DATA: 'Unsupported Data',
     WS_NO_STATUS_RECEIVED: 'No Status Received',
