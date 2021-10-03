@@ -9,7 +9,6 @@ class StreamProtocol(asyncio.Protocol):
         self.transport = None
 
         self._stream = stream
-        self._stream.set_protocol(self)
 
         self._over_ssl = False
 
@@ -87,58 +86,74 @@ class StreamParserContext:
 
         self._buffer = bytearray()
 
+    def _initialize_parser(self):
+        while True:
+            if self._parser is None:
+                self._parser = self._parsefunc(self)
+
+            try:
+                self._parser.send(None)
+            except StopIteration:
+                continue
+            else:
+                break
+
     def set_parser(self, func):
         self._parsefunc = func
+        self._initialize_parser()
+
+    def get_buffer(self):
+        return self._buffer
 
     def read(self, amount):
         while len(self._buffer) < amount:
-            data = yield
-            self._buffer.extend(data)
+            yield from self.fill()
 
         data = bytes(self._buffer[:amount])
         del self._buffer[:amount]
 
         return data
 
-    def feed_data(self, data):
-        while True:
-            if self._parser is None:
-                self._parser = self._parsefunc(self)
-                self._parser.send(None)
+    def fill(self):
+        data = yield
+        self._buffer.extend(data)
 
-            try:
-                self._parser.send(data)
-            except StopIteration:
-                self._parser = None
-            else:
-                break
+    def feed_data(self, data):
+        self._initialize_parser()
+        self._parser.send(data)
 
     def feed_eof(self):
         pass
 
 
 class Stream:
-    def __init__(self, loop):
+    def __init__(self, *, loop):
         self.loop = loop
         self.protocol = None
 
         self._ctx = StreamParserContext(self)
 
     def __repr__(self):
-        return (
-            f'<{self.__class__.__name__} protocol={self.protocol!r}, transport={self.transport!r}>'
-        )
+        attrs = [
+            ('protocol', self.protocol),
+            ('transport', self.transport),
+        ]
+        inner = ', '.join(f'{name}={value}' for name, value in attrs)
+        return f'<{self.__class__.__name__} {inner}>'
 
     @property
     def transport(self):
         if self.protocol is not None:
             return self.protocol.transport
 
+    async def create_protocol(self, host, port, **kwargs):
+        _, self.protocol = await self.loop.create_connection(
+            StreamProtocol, host, port, **kwargs
+        )
+        return self.protocol
+
     def set_parser(self, parser):
         self._ctx.set_parser(parser)
-
-    def set_protocol(self, protocol):
-        self.protocol = protocol
 
     def write(self, data):
         self.transport.write(getbytes(data))
