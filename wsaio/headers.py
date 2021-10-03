@@ -14,7 +14,7 @@ class HTTPHeaders:
 
     @recursive_repr('HTTPHeaders({...})')
     def __repr__(self):
-        return f'HTTPHeaders({{{self.__dict}}})'
+        return f'HTTPHeaders({self.__dict})'
 
     def __set_default(self, key):
         key = key.lower()
