@@ -11,9 +11,5 @@ class InvalidFrameError(InvalidDataError):
         return self.message
 
 
-class FatalFrameError(InvalidDataError):
-    pass
-
-
 class HandshakeFailureError(Exception):
     pass

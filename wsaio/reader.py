@@ -1,6 +1,6 @@
 from . import frame as wsframe
 from . import util
-from .exceptions import FatalFrameError, InvalidFrameError
+from .exceptions import InvalidFrameError
 
 _INVALID_OPCODE_MSG = 'The WebSocket received a frame with an invalid or unknown opcode: {!r}'
 _MISSING_CLOSE_CODE_MSG = 'The WebSocket received a close frame with payload data but no close code'
@@ -50,10 +50,10 @@ class WebSocketReader:
         frame = wsframe.WebSocketFrame.from_head(fbyte)
 
         if frame.op not in wsframe.WS_OPS:
-            raise FatalFrameError(_INVALID_OPCODE_MSG.format(frame.op))
+            raise InvalidFrameError(_INVALID_OPCODE_MSG.format(frame.op), wsframe.WS_PROTOCOL_ERROR)
 
         if any((frame.rsv1, frame.rsv2, frame.rsv3)):
-            raise FatalFrameError(_MEANINGLESS_RSV_BITS)
+            raise InvalidFrameError(_MEANINGLESS_RSV_BITS, wsframe.WS_PROTOCOL_ERROR)
 
         if frame.is_control():
             yield from self._handle_control_frame(ctx, frame, masked, length)
@@ -101,10 +101,10 @@ class WebSocketReader:
 
     def _handle_control_frame(self, ctx, frame, masked, length):
         if not frame.fin:
-            raise FatalFrameError(_FRAGMENTED_CONTROL_MSG)
+            raise InvalidFrameError(_FRAGMENTED_CONTROL_MSG, wsframe.WS_PROTOCOL_ERROR)
 
         if length > 125:
-            raise FatalFrameError(_LARGE_CONTROL_MSG.format(length))
+            raise InvalidFrameError(_LARGE_CONTROL_MSG.format(length), wsframe.WS_PROTOCOL_ERROR)
 
         data = yield from self._read_payload(ctx, length, masked)
 

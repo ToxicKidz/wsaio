@@ -1,7 +1,7 @@
 import asyncio
 
 from . import frame as wsframe
-from .exceptions import FatalFrameError, HandshakeFailureError, InvalidFrameError
+from .exceptions import HandshakeFailureError, InvalidFrameError
 from .handshake import WebSocketHandshake
 from .reader import WebSocketReader
 from .writer import WebSocketWriter
@@ -66,10 +66,7 @@ class WebSocketClient:
     async def _error_handler(self, exc):
         if isinstance(exc, InvalidFrameError):
             print('Invalid Frame Error:', exc.message)
-            await self.writer.close(exc.message, code=exc.code)
-        elif isinstance(exc, FatalFrameError):
-            print('Fatal Frame Error:', str(exc))
-            self.stream.close()
+            await self.close(exc.message, code=exc.code)
 
     async def connect(self, url, *, timeout=30, **kwargs):
         handshake = await WebSocketHandshake.from_url(url, loop=self.loop, **kwargs)
