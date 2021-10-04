@@ -50,26 +50,22 @@ def is_close_code(code):
 
 
 class WebSocketFrame:
-    """Represents a WebSocket frame."""
     __slots__ = ('head', 'data', 'code')
 
-    def __init__(self, *, op, data=None, code=None, fin=True, rsv1=False, rsv2=False, rsv3=False):
+    def __init__(self, *, op, data=None, code=None):
         self.head = 0
-
         self.set_op(op)
         self.set_data(data)
         self.set_code(code)
-        self.set_fin(fin)
-        self.set_rsv1(rsv1)
-        self.set_rsv2(rsv2)
-        self.set_rsv3(rsv3)
+        self.set_fin(True)
 
     @classmethod
-    def from_head(cls, head, data=None):
+    def from_head(cls, head, *, data=None, code=None):
         self = cls.__new__(cls)
 
         self.head = head
         self.set_data(data)
+        self.set_code(code)
 
         return self
 
@@ -140,7 +136,6 @@ class WebSocketFrame:
             self.code = None
 
     def validate(self):
-        """Raises ValueError is the frame doesn't conform to the WebSocket protocol."""
         if self.op not in WS_OPS:
             raise ValueError('Invalid opcode')
 

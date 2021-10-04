@@ -2,7 +2,7 @@ import base64
 import hashlib
 import os
 
-WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+WS_GUID = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
 
 def genmask():

@@ -1,21 +1,32 @@
 import asyncio
 
-from wsaio.stream import Stream, StreamProtocol
+from wsaio.client import WebSocketClient
 
 
-def parser(ctx):
-    while True:
-        data = yield from ctx.read(40)
-        print(data)
+class MyClient(WebSocketClient):
+    async def on_text(self, data):
+        await self.write(data)
+
+    async def on_binary(self, data):
+        await self.write(data, binary=True)
 
 
 async def main(loop):
-    stream = Stream(loop)
-    stream.set_parser(parser)
-    await loop.create_connection(lambda: StreamProtocol(stream), 'google.com', 443, ssl=True)
-    stream.write('SDJDJDJDJD\r\n\r\n')
+    for i in range(1, 50):
+        print(f'Running test case {i}')
+        client = MyClient(loop=loop)
+        await client.connect(f'ws://localhost:9001/runCase?case={i}&agent=wsaio')
+
+        try:
+            await asyncio.wait_for(client.stream.wait_until_closed(), timeout=5)
+        except asyncio.TimeoutError:
+            print(f'Test case {i} timed out')
+            client.stream.close()
+            break
+
+    client = MyClient(loop=loop)
+    await client.connect('ws://localhost:9001/updateReports?agent=wsaio')
 
 
 loop = asyncio.get_event_loop()
-loop.create_task(main(loop))
-loop.run_forever()
+loop.run_until_complete(main(loop))

@@ -45,7 +45,7 @@ class HTTPHeaders:
         return self.__dict.items()
 
     def get(self, key, default=None):
-        return self.__dict.get(key, default)
+        return self.__dict.get(key.lower(), default)
 
-    def getone(self, key):
-        return self.__dict.get(key)[0]
+    def getone(self, key, default=''):
+        return self.get(key, (default,))[0]

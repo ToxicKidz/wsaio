@@ -8,7 +8,7 @@ class WebSocketWriter:
     def __init__(self, *, stream):
         self.stream = stream
 
-    async def send_frame(self, frame, *, mask=False):
+    async def write_frame(self, frame, *, mask=False):
         """Writes a frame to the stream.
 
         Arguments:
@@ -58,7 +58,7 @@ class WebSocketWriter:
             mask (bool): Whether to send the frame with a mask.
         """
         frame = wsframe.WebSocketFrame(op=wsframe.OP_PING, data=data)
-        await self.send_frame(frame, mask=mask)
+        await self.write_frame(frame, mask=mask)
 
     async def pong(self, data=None, *, mask=False):
         """Writes a pong frame to the stream.
@@ -69,7 +69,7 @@ class WebSocketWriter:
             mask (bool): Whether to send the frame with a mask.
         """
         frame = wsframe.WebSocketFrame(op=wsframe.OP_PONG, data=data)
-        await self.send_frame(frame, mask=mask)
+        await self.write_frame(frame, mask=mask)
 
     async def close(self, data=None, *, code=wsframe.WS_NORMAL_CLOSURE, mask=False):
         """Writes a close frame to the stream.
@@ -82,9 +82,11 @@ class WebSocketWriter:
             mask (bool): Whether to send the frame with a mask.
         """
         frame = wsframe.WebSocketFrame(op=wsframe.OP_CLOSE, data=data, code=code)
-        await self.send_frame(frame, mask=mask)
+        await self.write_frame(frame, mask=mask)
 
-    async def send(self, data, *, binary=False, mask=False):
+        self.stream.close()
+
+    async def write(self, data, *, binary=False, mask=False):
         """Writes a data frame to the stream.
 
         Arguments:
@@ -98,4 +100,4 @@ class WebSocketWriter:
         frame = wsframe.WebSocketFrame(
             op=wsframe.OP_BINARY if binary else wsframe.OP_TEXT, data=data
         )
-        await self.send_frame(frame, mask=mask)
+        await self.write_frame(frame, mask=mask)

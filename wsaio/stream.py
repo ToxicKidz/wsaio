@@ -1,5 +1,6 @@
 import asyncio
 
+from .exceptions import InvalidDataError
 from .util import getbytes
 
 
@@ -81,29 +82,51 @@ class StreamParserContext:
     def __init__(self, stream):
         self.stream = stream
 
-        self._parsefunc = None
+        self.reset_parser()
         self._parser = None
+
+        self._error_handler = None
 
         self._buffer = bytearray()
 
+    def _step_parser(self, arg):
+        try:
+            self._parser.send(arg)
+        except InvalidDataError as exc:
+            if self._error_handler is not None:
+                self.stream.loop.create_task(self._error_handler(exc))
+            else:
+                raise
+
     def _initialize_parser(self):
-        while True:
-            if self._parser is None:
+        if self._parser is None:
+            while True:
                 self._parser = self._parsefunc(self)
 
-            try:
-                self._parser.send(None)
-            except StopIteration:
-                continue
-            else:
-                break
+                try:
+                    self._step_parser(None)
+                except StopIteration:
+                    continue
+                else:
+                    break
+
+    def set_error_handler(self, func):
+        self._error_handler = func
 
     def set_parser(self, func):
         self._parsefunc = func
+        self._parser = None
         self._initialize_parser()
+
+    def reset_parser(self):
+        self.set_parser(StreamParserContext.fill)
 
     def get_buffer(self):
         return self._buffer
+
+    def fill(self):
+        data = yield
+        self._buffer.extend(data)
 
     def read(self, amount):
         while len(self._buffer) < amount:
@@ -114,13 +137,12 @@ class StreamParserContext:
 
         return data
 
-    def fill(self):
-        data = yield
-        self._buffer.extend(data)
-
     def feed_data(self, data):
-        self._initialize_parser()
-        self._parser.send(data)
+        try:
+            self._step_parser(data)
+        except StopIteration:
+            self._parser = None
+            self._initialize_parser()
 
     def feed_eof(self):
         pass
@@ -148,12 +170,15 @@ class Stream:
 
     async def create_protocol(self, host, port, **kwargs):
         _, self.protocol = await self.loop.create_connection(
-            StreamProtocol, host, port, **kwargs
+            lambda: StreamProtocol(self), host, port, **kwargs
         )
         return self.protocol
 
     def set_parser(self, parser):
         self._ctx.set_parser(parser)
+
+    def set_error_handler(self, func):
+        self._ctx.set_error_handler(func)
 
     def write(self, data):
         self.transport.write(getbytes(data))
@@ -174,7 +199,8 @@ class Stream:
         self._ctx.feed_eof()
 
     def close(self):
-        self.transport.close()
+        if self.transport is not None:
+            self.transport.close()
 
     def is_closing(self):
         return self.transport.is_closing()
