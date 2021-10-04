@@ -107,7 +107,9 @@ class WebSocketHandshake:
         try:
             headers, (version, code, _) = await asyncio.wait_for(self._future, timeout=timeout)
         except asyncio.TimeoutError:
-            raise HandshakeFailureError('The handshake timed out while negotaiting') from None
+            raise HandshakeFailureError(
+                'The handshake timed out while waiting for response'
+            ) from None
 
         if version != 'HTTP/1.1':
             raise HandshakeFailureError(f'Expected HTTP/1.1, got {version}')
@@ -121,7 +123,7 @@ class WebSocketHandshake:
         if headers.getone(httphdrs.UPGRADE).lower() != 'websocket':
             raise HandshakeFailureError(f'The {httphdrs.UPGRADE!r} header is not \'websocket\'')
 
-        if headers.getone(httphdrs.SEC_WEBSOCKET_ACCEPT) != acckey and False:
+        if headers.getone(httphdrs.SEC_WEBSOCKET_ACCEPT) != acckey:
             raise HandshakeFailureError(
                 f'The {httphdrs.SEC_WEBSOCKET_ACCEPT!r} header does not match the secret key'
             )

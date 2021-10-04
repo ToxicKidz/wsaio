@@ -76,6 +76,9 @@ class WebSocketFrame:
     def is_control(self):
         return self.op > 0x7
 
+    def is_continuation(self):
+        return self.op == OP_CONTINUATION
+
     def is_text(self):
         return self.op == OP_TEXT
 

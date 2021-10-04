@@ -15,7 +15,7 @@ _LARGE_CONTROL_MSG = (
 )
 _FRAGMENTED_CONTROL_MSG = 'The WebSocket received a fragmented control frame'
 _NON_UTF_8_MSG = 'The WebSocket received a text or close frame with non-UTF-8 payload data'
-_MEANINGLESS_RSV_BITS = (
+_MEANINGLESS_RSV_BITS_MSG = (
     'The WebSocket received a frame with a reserved bit set but no meaning was negotiated'
 )
 
@@ -26,7 +26,9 @@ class WebSocketReader:
     def __init__(self, *, stream):
         self.stream = stream
 
-        self._on_frame = None
+        self._fragment_buffer = bytearray()
+        self._fragmented_frame = None
+
         self._on_ping = None
         self._on_pong = None
         self._on_text = None
@@ -36,10 +38,23 @@ class WebSocketReader:
     def __repr__(self):
         return f'<{self.__class__.__name__} stream={self.stream!r}>'
 
-    def _run_callback(self, name, *args):
-        callback = getattr(self, f'_on_{name}')
-        if callback is not None:
-            self.stream.loop.create_task(callback(*args))
+    def _run_callback(self, frame):
+        if frame.is_ping():
+            coro = self._on_ping(frame.data)
+        elif frame.is_pong():
+            coro = self._on_pong(frame.data)
+        elif frame.is_text():
+            coro = self._on_text(frame.data)
+        elif frame.is_binary():
+            coro = self._on_binary(frame.data)
+        elif frame.is_close():
+            coro = self._on_close(frame.code, frame.data)
+
+        self.stream.loop.create_task(coro)
+
+    def _reset_fragmenter(self):
+        self._fragment_buffer.clear()
+        self._fragmented_frame = None
 
     def read_frame(self, ctx):
         fbyte, sbyte = yield from ctx.read(2)
@@ -53,14 +68,12 @@ class WebSocketReader:
             raise InvalidFrameError(_INVALID_OPCODE_MSG.format(frame.op), wsframe.WS_PROTOCOL_ERROR)
 
         if any((frame.rsv1, frame.rsv2, frame.rsv3)):
-            raise InvalidFrameError(_MEANINGLESS_RSV_BITS, wsframe.WS_PROTOCOL_ERROR)
+            raise InvalidFrameError(_MEANINGLESS_RSV_BITS_MSG, wsframe.WS_PROTOCOL_ERROR)
 
         if frame.is_control():
             yield from self._handle_control_frame(ctx, frame, masked, length)
         else:
             yield from self._handle_data_frame(ctx, frame, masked, length)
-
-        self._run_callback('frame', frame)
 
     def _read_length(self, ctx, length):
         if length == 126:
@@ -118,12 +131,7 @@ class WebSocketReader:
         else:
             frame.set_data(data)
 
-        if frame.is_ping():
-            self._run_callback('ping', frame.data)
-        elif frame.is_pong():
-            self._run_callback('pong', frame.data)
-        elif frame.is_close():
-            self._run_callback('close', frame.code, frame.data)
+        self._run_callback(frame)
 
     def _handle_data_frame(self, ctx, frame, masked, length):
         length = yield from self._read_length(ctx, length)
@@ -137,7 +145,21 @@ class WebSocketReader:
         else:
             frame.set_data(data)
 
-        if frame.is_text():
-            self._run_callback('text', frame.data)
-        elif frame.is_binary():
-            self._run_callback('binary', frame.data)
+        if frame.is_continuation():
+            if self._fragmented_frame is None:
+                raise InvalidFrameError('', wsframe.WS_PROTOCOL_ERROR)
+
+            self._fragment_buffer.extend(frame.data)
+
+            if frame.fin:
+                self._fragmented_frame.set_data(self._fragment_buffer)
+                self._run_callback(self._fragmented_frame)
+                self._reset_fragmenter()
+        else:
+            if self._fragmented_frame is not None:
+                raise InvalidFrameError('', wsframe.WS_PROTOCOL_ERROR)
+
+            if not frame.fin:
+                self._fragmented_frame = frame
+            else:
+                self._run_callback(frame)

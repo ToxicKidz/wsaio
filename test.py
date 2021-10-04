@@ -12,7 +12,7 @@ class MyClient(WebSocketClient):
 
 
 async def main(loop):
-    for i in range(1, 50):
+    for i in range(1, 60):
         print(f'Running test case {i}')
         client = MyClient(loop=loop)
         await client.connect(f'ws://localhost:9001/runCase?case={i}&agent=wsaio')
