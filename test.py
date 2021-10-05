@@ -3,7 +3,7 @@ import asyncio
 from wsaio.client import WebSocketClient
 
 
-class MyClient(WebSocketClient):
+class TestClient(WebSocketClient):
     async def on_text(self, data):
         await self.write(data)
 
@@ -15,7 +15,7 @@ async def main(loop):
     try:
         for i in range(1, 302):
             print(f'Running test case {i}')
-            client = MyClient(loop=loop)
+            client = TestClient(loop=loop)
             await client.connect(f'ws://localhost:9001/runCase?case={i}&agent=wsaio')
 
             try:
@@ -25,7 +25,7 @@ async def main(loop):
                 client.stream.close()
                 break
     finally:
-        client = MyClient(loop=loop)
+        client = TestClient(loop=loop)
         await client.connect('ws://localhost:9001/updateReports?agent=wsaio')
 
 

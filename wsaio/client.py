@@ -89,3 +89,6 @@ class WebSocketClient:
 
             self.stream.set_error_handler(self._error_handler)
             self.stream.set_parser(self.reader.read_frame)
+
+    async def wait_until_closed(self):
+        await self.stream.wait_until_closed()
