@@ -12,20 +12,21 @@ class MyClient(WebSocketClient):
 
 
 async def main(loop):
-    for i in range(1, 60):
-        print(f'Running test case {i}')
+    try:
+        for i in range(1, 302):
+            print(f'Running test case {i}')
+            client = MyClient(loop=loop)
+            await client.connect(f'ws://localhost:9001/runCase?case={i}&agent=wsaio')
+
+            try:
+                await asyncio.wait_for(client.stream.wait_until_closed(), timeout=10)
+            except asyncio.TimeoutError:
+                print(f'Test case {i} timed out')
+                client.stream.close()
+                break
+    finally:
         client = MyClient(loop=loop)
-        await client.connect(f'ws://localhost:9001/runCase?case={i}&agent=wsaio')
-
-        try:
-            await asyncio.wait_for(client.stream.wait_until_closed(), timeout=5)
-        except asyncio.TimeoutError:
-            print(f'Test case {i} timed out')
-            client.stream.close()
-            break
-
-    client = MyClient(loop=loop)
-    await client.connect('ws://localhost:9001/updateReports?agent=wsaio')
+        await client.connect('ws://localhost:9001/updateReports?agent=wsaio')
 
 
 loop = asyncio.get_event_loop()

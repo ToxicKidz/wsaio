@@ -7,16 +7,25 @@ _MISSING_CLOSE_CODE_MSG = 'The WebSocket received a close frame with payload dat
 _INVALID_CLOSE_CODE_MSG = (
     'The WebSocket received a close frame with an invalid or unknown close code: {!r}'
 )
+
 _INVALID_LENGTH_MSG = (
     'The WebSocket received a frame with an invalid non-extended payload length: {!r}'
 )
 _LARGE_CONTROL_MSG = (
     'The WebSocket received a control frame with a payload length that exceeds 125: {!r}'
 )
+
 _FRAGMENTED_CONTROL_MSG = 'The WebSocket received a fragmented control frame'
-_NON_UTF_8_MSG = 'The WebSocket received a text or close frame with non-UTF-8 payload data'
 _MEANINGLESS_RSV_BITS_MSG = (
     'The WebSocket received a frame with a reserved bit set but no meaning was negotiated'
+)
+_NON_UTF_8_MSG = 'The WebSocket received a text or close frame with non-UTF-8 payload data'
+
+_EXPECTED_CONT_MSG = (
+    'The WebSocket received a non-continuation data frame while reading a fragmented frame'
+)
+_UNEXPECTED_CONT_MSG = (
+    'The WebSocket received a continuation frame but no fragmented frame was received'
 )
 
 
@@ -51,6 +60,10 @@ class WebSocketReader:
             coro = self._on_close(frame.code, frame.data)
 
         self.stream.loop.create_task(coro)
+
+    def _setup_fragmenter(self, frame, data):
+        self._fragmented_frame = frame
+        self._fragment_buffer.extend(data)
 
     def _reset_fragmenter(self):
         self._fragment_buffer.clear()
@@ -106,7 +119,7 @@ class WebSocketReader:
         code = int.from_bytes(data[:2], 'big', signed=False)
 
         if not wsframe.is_close_code(code):
-            raise InvalidFrameError(_INVALID_CLOSE_CODE_MSG, wsframe.WS_PROTOCOL_ERROR)
+            raise InvalidFrameError(_INVALID_CLOSE_CODE_MSG.format(code), wsframe.WS_PROTOCOL_ERROR)
 
         frame.set_code(code)
 
@@ -137,29 +150,30 @@ class WebSocketReader:
         length = yield from self._read_length(ctx, length)
         data = yield from self._read_payload(ctx, length, masked)
 
-        if frame.is_text():
-            try:
-                frame.set_data(data.decode('utf-8'))
-            except UnicodeDecodeError:
-                raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
-        else:
-            frame.set_data(data)
-
         if frame.is_continuation():
             if self._fragmented_frame is None:
-                raise InvalidFrameError('', wsframe.WS_PROTOCOL_ERROR)
+                raise InvalidFrameError(_UNEXPECTED_CONT_MSG, wsframe.WS_PROTOCOL_ERROR)
 
-            self._fragment_buffer.extend(frame.data)
+            self._fragment_buffer.extend(data)
+        elif self._fragmented_frame is not None:
+            raise InvalidFrameError(_EXPECTED_CONT_MSG, wsframe.WS_PROTOCOL_ERROR)
 
-            if frame.fin:
-                self._fragmented_frame.set_data(self._fragment_buffer)
-                self._run_callback(self._fragmented_frame)
-                self._reset_fragmenter()
+        if not frame.fin:
+            if self._fragmented_frame is None:
+                self._setup_fragmenter(frame, data)
         else:
             if self._fragmented_frame is not None:
-                raise InvalidFrameError('', wsframe.WS_PROTOCOL_ERROR)
+                frame = self._fragmented_frame
+                data = bytes(self._fragment_buffer)
 
-            if not frame.fin:
-                self._fragmented_frame = frame
+                self._reset_fragmenter()
+
+            if frame.is_text():
+                try:
+                    frame.set_data(data.decode('utf-8'))
+                except UnicodeDecodeError:
+                    raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
             else:
-                self._run_callback(frame)
+                frame.set_data(data)
+
+            self._run_callback(frame)
