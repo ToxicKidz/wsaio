@@ -65,7 +65,6 @@ class WebSocketClient:
 
     async def _error_handler(self, exc):
         if isinstance(exc, InvalidFrameError):
-            print('Invalid Frame Error:', exc.message)
             await self.close(exc.message, code=exc.code)
 
     async def connect(self, url, *, timeout=30, **kwargs):
