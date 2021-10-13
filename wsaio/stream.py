@@ -38,10 +38,10 @@ class StreamProtocol(asyncio.Protocol):
             self._drain_waiter = None
 
     def data_received(self, data):
-        self._stream.feed_data(data)
+        self._stream._ctx.feed_data(data)
 
     def eof_received(self):
-        self._stream.feed_eof()
+        self._stream._ctx.feed_eof()
         if self._over_ssl:
             return False
         return True
@@ -98,6 +98,15 @@ class StreamParserContext:
             else:
                 raise
 
+    def _fail_parser(self, error):
+        try:
+            self._parser.throw(error)
+        except Exception as exc:
+            if self._error_handler is not None:
+                self.loop.create_task(self._error_handler(exc))
+            else:
+                raise
+
     def _initialize_parser(self):
         if self._parser is None:
             while True:
@@ -145,7 +154,7 @@ class StreamParserContext:
             self._initialize_parser()
 
     def feed_eof(self):
-        pass
+        self._fail_parser(EOFError)
 
 
 class Stream:
@@ -188,15 +197,6 @@ class Stream:
 
     def can_write_eof(self):
         return self.transport.can_write_eof()
-
-    def write_eof(self):
-        self.transport.write_eof()
-
-    def feed_data(self, data):
-        self._ctx.feed_data(data)
-
-    def feed_eof(self):
-        self._ctx.feed_eof()
 
     def close(self):
         if self.transport is not None:

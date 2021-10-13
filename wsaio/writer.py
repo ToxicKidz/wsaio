@@ -21,31 +21,34 @@ class WebSocketWriter:
 
         frame.validate()
 
-        self.stream.write(frame.head)
-
         data = frame.data
-
-        masked = mask << 7
         length = len(data)
 
+        buffer = bytearray(2)
+        buffer[0] = frame.head
+
+        masked = mask << 7
+
         if length < 126:
-            self.stream.write(masked | length)
+            buffer[1] = masked | length
         elif length < (1 << 16):
-            self.stream.write(masked | 126)
-            self.stream.write(length.to_bytes(2, 'big', signed=False))
+            buffer[1] = masked | 126
+            buffer.extend(length.to_bytes(2, 'big', signed=False))
         else:
-            self.stream.write(masked | 127)
-            self.stream.write(length.to_bytes(8, 'big', signed=False))
+            buffer[1] = masked | 127
+            buffer.extend(length.to_bytes(8, 'big', signed=False))
 
         if frame.code is not None:
             data = frame.code.to_bytes(2, 'big', signed=False) + data
 
         if mask:
             mask = util.genmask()
-            self.stream.write(mask)
-            self.stream.write(util.mask(data, mask))
+            buffer.extend(mask)
+            buffer.extend(util.mask(data, mask))
         else:
-            self.stream.write(data)
+            buffer.extend(data)
+
+        self.stream.write(buffer)
 
         await self.stream.wait_until_drained()
 
