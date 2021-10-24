@@ -22,6 +22,9 @@ class WebSocketWriter:
         frame.validate()
 
         data = frame.data
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+
         length = len(data)
 
         buffer = bytearray(2)

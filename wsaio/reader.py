@@ -1,3 +1,7 @@
+from codecs import getincrementaldecoder
+from contextlib import contextmanager
+from io import BytesIO, StringIO
+
 from . import frame as wsframe
 from . import util
 from .exceptions import InvalidFrameError
@@ -28,6 +32,8 @@ _UNEXPECTED_CONT_MSG = (
     'The WebSocket received a continuation frame but no fragmented frame was received'
 )
 
+_IncrementalDecoder = getincrementaldecoder('utf-8')
+
 
 class WebSocketReader:
     """A class for reading WebSocket frames from a stream."""
@@ -35,7 +41,8 @@ class WebSocketReader:
     def __init__(self, *, stream):
         self.stream = stream
 
-        self._fragment_buffer = bytearray()
+        self._fragment_buffer = None
+        self._fragment_decoder = None
         self._fragmented_frame = None
 
         self._on_ping = None
@@ -46,6 +53,13 @@ class WebSocketReader:
 
     def __repr__(self):
         return f'<{self.__class__.__name__} stream={self.stream!r}>'
+
+    @contextmanager
+    def _suppress_decode_error(self):
+        try:
+            yield
+        except UnicodeDecodeError:
+            raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
 
     def _run_callback(self, frame):
         if frame.is_ping():
@@ -63,11 +77,23 @@ class WebSocketReader:
 
     def _setup_fragmenter(self, frame, data):
         self._fragmented_frame = frame
-        self._fragment_buffer.extend(data)
+        if frame.is_text():
+            self._fragment_decoder = _IncrementalDecoder()
+            self._fragment_buffer = StringIO()
+        else:
+            self._fragment_buffer = BytesIO(data)
+
+        self._write_fragment(data)
+
+    def _write_fragment(self, data):
+        if self._fragment_decoder is not None:
+            data = self._fragment_decoder.decode(data)
+        self._fragment_buffer.write(data)
 
     def _reset_fragmenter(self):
-        self._fragment_buffer.clear()
         self._fragmented_frame = None
+        self._fragment_buffer = None
+        self._fragment_decoder = None
 
     def read_frame(self, ctx):
         fbyte, sbyte = yield from ctx.read(2)
@@ -137,10 +163,8 @@ class WebSocketReader:
         if frame.is_close():
             data = self._set_close_code(frame, data)
 
-            try:
+            with self._suppress_decode_error():
                 frame.set_data(data.decode('utf-8'))
-            except UnicodeDecodeError:
-                raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
         else:
             frame.set_data(data)
 
@@ -154,26 +178,24 @@ class WebSocketReader:
             if self._fragmented_frame is None:
                 raise InvalidFrameError(_UNEXPECTED_CONT_MSG, wsframe.WS_PROTOCOL_ERROR)
 
-            self._fragment_buffer.extend(data)
+            with self._suppress_decode_error():
+                self._write_fragment(data)
         elif self._fragmented_frame is not None:
             raise InvalidFrameError(_EXPECTED_CONT_MSG, wsframe.WS_PROTOCOL_ERROR)
 
         if not frame.fin:
             if self._fragmented_frame is None:
-                self._setup_fragmenter(frame, data)
+                with self._suppress_decode_error():
+                    self._setup_fragmenter(frame, data)
         else:
             if self._fragmented_frame is not None:
                 frame = self._fragmented_frame
-                data = bytes(self._fragment_buffer)
-
+                data = self._fragment_buffer.getvalue()
                 self._reset_fragmenter()
+            elif frame.is_text():
+                with self._suppress_decode_error():
+                    data = data.decode('utf-8')
 
-            if frame.is_text():
-                try:
-                    frame.set_data(data.decode('utf-8'))
-                except UnicodeDecodeError:
-                    raise InvalidFrameError(_NON_UTF_8_MSG, wsframe.WS_INVALID_PAYLOAD_DATA)
-            else:
-                frame.set_data(data)
+            frame.set_data(data)
 
             self._run_callback(frame)

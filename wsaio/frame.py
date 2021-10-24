@@ -118,7 +118,10 @@ class WebSocketFrame:
         self.head |= int(op)
 
     def set_data(self, data):
-        self.data = getbytes(data)
+        if isinstance(data, str):
+            self.data = data
+        else:
+            self.data = getbytes(data)
 
     def set_fin(self, value):
         self.head |= int(value) << 7
