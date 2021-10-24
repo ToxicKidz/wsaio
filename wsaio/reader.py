@@ -81,7 +81,7 @@ class WebSocketReader:
             self._fragment_decoder = _IncrementalDecoder()
             self._fragment_buffer = StringIO()
         else:
-            self._fragment_buffer = BytesIO(data)
+            self._fragment_buffer = BytesIO()
 
         self._write_fragment(data)
 
