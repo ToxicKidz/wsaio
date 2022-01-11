@@ -1,3 +1,8 @@
+<h1 align="center">wsaio</h1>
+<p align="center">
+<a href="https://pypi.org/project/wsaio"><img height="20" alt="PyPI version" src="https://img.shields.io/pypi/v/wsaio"></a>
+<a href="https://pypi.org/project/wsaio"><img height="20" alt="Supported python versions" src="https://img.shields.io/pypi/pyversions/wsaio"></a>
+</p>
 wsaio is a callback-based WebSocket library for Python.
 
 # Examples
